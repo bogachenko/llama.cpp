@@ -16,6 +16,7 @@
 #  include <netinet/tcp.h>
 #  include <netdb.h>
 #  include <unistd.h>
+#  include <sys/select.h>
 #endif
 #include <cstdlib>
 #include <cstring>
@@ -687,6 +688,21 @@ const char * socket_t::transport_name() const {
     return pimpl->use_rdma ? "RDMA" : "TCP";
 }
 
+void socket_t::shutdown() {
+    if (!pimpl) {
+        return;
+    }
+#ifdef _WIN32
+    if (pimpl->fd != INVALID_SOCKET) {
+        ::shutdown(pimpl->fd, SD_BOTH);
+    }
+#else
+    if (pimpl->fd >= 0) {
+        ::shutdown(pimpl->fd, SHUT_RDWR);
+    }
+#endif
+}
+
 static bool is_valid_fd(sockfd_t sockfd) {
 #ifdef _WIN32
     return sockfd != INVALID_SOCKET;
@@ -708,7 +724,37 @@ static bool set_reuse_addr(sockfd_t sockfd) {
     return ret == 0;
 }
 
-socket_ptr socket_t::accept() {
+socket_ptr socket_t::accept(int timeout_ms, bool * timed_out) {
+    if (timed_out) {
+        *timed_out = false;
+    }
+
+    if (timeout_ms >= 0) {
+        fd_set read_fds;
+        FD_ZERO(&read_fds);
+        FD_SET(pimpl->fd, &read_fds);
+
+        timeval timeout = {};
+        timeout.tv_sec = timeout_ms / 1000;
+        timeout.tv_usec = (timeout_ms % 1000) * 1000;
+
+#ifdef _WIN32
+        const int ready = select(0, &read_fds, nullptr, nullptr, &timeout);
+#else
+        const int ready = select(pimpl->fd + 1, &read_fds, nullptr, nullptr, &timeout);
+#endif
+        if (ready == 0) {
+            if (timed_out) {
+                *timed_out = true;
+            }
+            return nullptr;
+        }
+        if (ready < 0) {
+            LOG_ERROR("select failed while waiting for an RPC client\n");
+            return nullptr;
+        }
+    }
+
     auto client_socket_fd = ::accept(pimpl->fd, NULL, NULL);
     if (!is_valid_fd(client_socket_fd)) {
         return nullptr;

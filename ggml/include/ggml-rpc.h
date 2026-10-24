@@ -27,6 +27,14 @@ GGML_BACKEND_API void ggml_backend_rpc_get_device_memory(const char * endpoint, 
 GGML_BACKEND_API void ggml_backend_rpc_start_server(const char * endpoint, const char * cache_dir,
                                                     size_t n_threads, size_t n_devices, ggml_backend_dev_t * devices);
 
+// Managed RPC server API. Stop joins the server thread and releases its resources.
+typedef struct ggml_rpc_server_handle ggml_rpc_server_handle;
+GGML_BACKEND_API ggml_rpc_server_handle * ggml_backend_rpc_server_start(
+    const char * endpoint, const char * cache_dir, size_t n_threads,
+    size_t n_devices, ggml_backend_dev_t * devices);
+GGML_BACKEND_API void ggml_backend_rpc_server_stop(ggml_rpc_server_handle * server);
+GGML_BACKEND_API bool ggml_backend_rpc_server_is_running(ggml_rpc_server_handle * server);
+
 GGML_BACKEND_API ggml_backend_reg_t ggml_backend_rpc_reg(void);
 GGML_BACKEND_API ggml_backend_reg_t ggml_backend_rpc_add_server(const char * endpoint);
 

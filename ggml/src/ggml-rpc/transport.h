@@ -20,7 +20,8 @@ struct socket_t {
     // here. No-op on TCP.
     bool flush();
 
-    socket_ptr accept();
+    socket_ptr accept(int timeout_ms = -1, bool * timed_out = nullptr);
+    void shutdown();
 
     void get_caps(uint8_t * local_caps);
     void update_caps(const uint8_t * remote_caps);
